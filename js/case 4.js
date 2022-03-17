@@ -1,32 +1,122 @@
 // 马科夫序列
+// qc.reset(2);
+// var a = qint.new(1, 'a')
+// var b = qint.new(1, 'b')
+// a.write(1)
+// b.write(0)
 
-var num_qubits = 5;
+// qc.startlabel('preprae')
+// qc.cry(90, a.bits(0x1), b.bits(0x1));
+// qc.endlabel('preprae')
+
+
+// [
+//     ["cos(theta / 2)","-1 * sin(theta / 2)"],
+//     ["sin(theta / 2)","cos(theta / 2)"]
+// ]
+
+// [
+//     [1,0,0,0],
+//     [0,1,0,0],
+//     [0,0,"cos(theta / 2)","-1 * sin(theta / 2)"],
+//     [0,0,"sin(theta / 2)","cos(theta / 2)"]
+// ]
+
+let theta1to1 = probability => {  //1去1的概率
+    return asin(sqrt(probability)) / pi * 180 * 2
+}
+let theta0to1 = probability => {  //0去1的概率
+    return acos(sqrt(probability)) / pi * 180 * 2
+}
+
+var num_qubits = 7;
 qc.reset(num_qubits);
 
-var step_1 = qint.new(1, 'step 1')
-var step_2 = qint.new(1, 'step 2')
-var step_3 = qint.new(1, 'step 3')
-var step_4 = qint.new(1, 'step 4')
+let setConditional = (probability, control, target, from_zero) => {
+    // debugger
+    let theta = undefined
+    if(from_zero){
+        probability = 1-probability
+        theta = theta0to1(probability)
+    }else{
+        theta = theta1to1(probability)
+    }
+    // console.log(theta)
+    qc.cry(theta, control.bits(0x1), target.bits(0x1))
+}
 
-var estimation =  qint.new(1, 'estimation')
+let flip = (control, target) => {
+    qc.cnot(control.bits(0x1), target.bits(0x1))
+}
 
-qc.write(0)  //现在不write第一个是空的
+var step_1 = qint.new(1, 's1')
+var not_step_1 = qint.new(1, 'ns1')
+var step_2 = qint.new(1, 's2')
+var not_step_2 = qint.new(1, 'ns2')
+var step_3 = qint.new(1, 's3')
+var not_step_3 = qint.new(1, 'ns3')
 
-qc.startlabel('preprae')
+var estimation =  qint.new(1, 'ρ')
 
-qc.ry(45, 0x1,)
-qc.cry(45, 0x1, 0x2)
-qc.cry(45, 0x2, 0x4)
-// qc.cry(45, 0x4, 0x8)
-qc.endlabel('preprae')
+qc.startlabel('init')
+qc.write(0b0101010)  //现在不write第一个是空的
+qc.endlabel('init')
+qc.nop()
 
-// 8 + 16 + 32
+// qc.startlabel('preprae')
+// qc.endlabel('preprae')
 
-estimation.write(0x1)
-qc.cphase(30, 0x1, 0x10)
-qc.cphase(30, 0x2, 0x10)
-qc.cphase(30, 0x4, 0x10)
-// qc.cphase(10, 0x1, 0x38)
+qc.startlabel('Calculate probability')
+
+
+qc.startlabel('ry 101°')
+qc.ry(theta1to1(0.6), 0x1,)
+qc.endlabel('ry 101°')
+
+qc.startlabel('cnot')
+flip(step_1, not_step_1)
+qc.endlabel('cnot')
+
+qc.startlabel('cry 66°')
+setConditional(0.3, step_1, step_2, false)
+qc.endlabel('cry 66°')
+
+setConditional(0.4, not_step_1, step_2, true) 
+flip(step_2, not_step_2)
+
+
+setConditional(0.2, step_2, step_3, false)  //0.66 * 0.1
+setConditional(0.1, not_step_2, step_3, true) //0.34 * 0.8
+qc.endlabel('Calculate probability')
+
+// flip(step_3, not_step_3)
+// // qc.cry(theta1to1(0.3), not_step_1.bits(0x1), step_2.bits(0x1))
+
+// // qc.cry(theta1to1(0.2), 0x1, 0x2)
+// // qc.cry(45, 0x2, 0x4)
+// // // qc.cry(45, 0x4, 0x8)
+// // qc.endlabel('preprae')
+
+// // 8 + 16 + 32
+qc.nop()
+
+// estimation.write(0x1)
+let estimation_bit = estimation.bits(0x1)
+// qc.cphase(10, step_1.bits(0x1), estimation_bit)
+// qc.cphase(20, not_step_1.bits(0x1), estimation_bit)
+// qc.cphase(15, step_2.bits(0x1), estimation_bit)
+// qc.cphase(30, not_step_2.bits(0x1), estimation_bit)
+// qc.cphase(200, step_3.bits(0x1), estimation_bit)
+// qc.cphase(10, not_step_3.bits(0x1), estimation_bit)
+
+qc.startlabel('Sum')
+setConditional(0.1, step_1, estimation, false) //0.34 * 0.8
+// setConditional(0.02, not_step_1, estimation, false) //0.34 * 0.8
+setConditional(0.1, step_2, estimation, false) //0.34 * 0.8
+// setConditional(0.04, not_step_2, estimation, false) //0.34 * 0.8
+setConditional(0.6, step_3, estimation, false) //0.34 * 0.8
+// setConditional(0.03, not_step_3, estimation, false) //0.34 * 0.8
+qc.endlabel('Sum')
 
 // TODO：还是不要用二进制了，太难受了
 // qc.cphase(10, 0x1, 0x38)
